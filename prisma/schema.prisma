@@ -1,0 +1,311 @@
+// Prisma Schema for School Management ERP (Eskooly-Inspired)
+// Fully compatible with SQLite for local development & PostgreSQL for Neon/Supabase/Vercel
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Institute {
+  id             String   @id @default(cuid())
+  name           String   @default("Apex International Grammar School")
+  code           String   @default("AIGS-2024")
+  tagline        String   @default("Empowering Minds, Inspiring Futures")
+  address        String   @default("14-Education Avenue, Knowledge City")
+  phone          String   @default("+92 (42) 3578-9000")
+  email          String   @default("admin@apexschool.edu")
+  currencySymbol String   @default("$")
+  currentSession String   @default("2024-2025")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         String   @default("SCHOOL_ADMIN") // SUPER_ADMIN, SCHOOL_ADMIN, TEACHER, ACCOUNTANT
+  status       String   @default("ACTIVE")       // ACTIVE, INACTIVE
+  avatar       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Teacher {
+  id             String          @id @default(cuid())
+  employeeId     String          @unique
+  name           String
+  email          String          @unique
+  phone          String
+  gender         String          @default("Male")
+  designation    String          @default("Senior Faculty")
+  qualification  String          @default("M.Sc. / B.Ed.")
+  joiningDate    DateTime        @default(now())
+  salary         Float           @default(50000)
+  address        String?
+  status         String          @default("ACTIVE")
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  sections       Section[]
+  subjects       Subject[]
+  timetableSlots TimetableSlot[]
+}
+
+model AcademicClass {
+  id             String          @id @default(cuid())
+  name           String          @unique // e.g. "Grade 1", "Grade 2", ..., "Grade 10"
+  gradeLevel     Int             // 1, 2, ..., 10
+  numericCode    String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  sections       Section[]
+  subjects       Subject[]
+  students       Student[]
+  feeStructures  FeeStructure[]
+  feeSlips       FeeSlip[]
+  examMarks      ExamMark[]
+  examSchedules  ExamSchedule[]
+  timetableSlots TimetableSlot[]
+}
+
+model Section {
+  id             String          @id @default(cuid())
+  name           String          // e.g. "Section A", "Section B"
+  classId        String
+  class          AcademicClass   @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classTeacherId String?
+  classTeacher   Teacher?        @relation(fields: [classTeacherId], references: [id], onDelete: SetNull)
+  roomNumber     String?         @default("Room 101")
+  capacity       Int             @default(40)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  students       Student[]
+  feeSlips       FeeSlip[]
+  timetableSlots TimetableSlot[]
+
+  @@unique([classId, name])
+}
+
+model Subject {
+  id             String          @id @default(cuid())
+  name           String          // e.g. "Mathematics", "Science"
+  code           String          // e.g. "MTH-101"
+  type           String          @default("CORE") // CORE, ELECTIVE, PRACTICAL
+  classId        String
+  class          AcademicClass   @relation(fields: [classId], references: [id], onDelete: Cascade)
+  teacherId      String?
+  teacher        Teacher?        @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  examMarks      ExamMark[]
+  examSchedules  ExamSchedule[]
+  timetableSlots TimetableSlot[]
+}
+
+model Student {
+  id                 String             @id @default(cuid())
+  admissionNo        String             @unique // e.g. "ADM-2024-001"
+  rollNo             String
+  firstName          String
+  lastName           String
+  gender             String             @default("Male")
+  dob                DateTime?
+  bloodGroup         String?            @default("O+")
+  admissionDate      DateTime           @default(now())
+  status             String             @default("ACTIVE") // ACTIVE, INACTIVE, ALUMNI
+  classId            String
+  class              AcademicClass      @relation(fields: [classId], references: [id], onDelete: Restrict)
+  sectionId          String
+  section            Section            @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  parentName         String
+  parentRelationship String             @default("Father")
+  parentPhone        String
+  parentEmail        String?
+  parentOccupation   String?
+  emergencyContact   String?
+  address            String?
+  avatar             String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  attendanceRecords  AttendanceRecord[]
+  feeSlips           FeeSlip[]
+  feePayments        FeePayment[]
+  feeReceipts        FeeReceipt[]
+  examMarks          ExamMark[]
+}
+
+model AttendanceRecord {
+  id        String   @id @default(cuid())
+  date      DateTime // normalized to midnight UTC
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classId   String
+  sectionId String
+  status    String   @default("PRESENT") // PRESENT, ABSENT, LATE, LEAVE
+  remarks   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([studentId, date])
+}
+
+model FeeStructure {
+  id          String        @id @default(cuid())
+  classId     String
+  class       AcademicClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+  feeType     String        // "Tuition Fee", "Admission Fee", "Exam Fee", "Transport Fee", "Computer Lab Fee"
+  amount      Float
+  frequency   String        @default("MONTHLY") // MONTHLY, ONE_TIME, ANNUALLY, PER_EXAM
+  description String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model FeeSlip {
+  id            String         @id @default(cuid())
+  slipNumber    String         @unique // e.g. "SLIP-2024-001"
+  studentId     String
+  student       Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classId       String
+  class         AcademicClass  @relation(fields: [classId], references: [id], onDelete: Restrict)
+  sectionId     String
+  section       Section        @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  title         String         // e.g. "November 2024 Tuition Fee"
+  month         String         // e.g. "November"
+  year          Int            // e.g. 2024
+  issueDate     DateTime       @default(now())
+  dueDate       DateTime
+  totalAmount   Float
+  paidAmount    Float          @default(0)
+  balance       Float
+  status        String         @default("UNPAID") // UNPAID, PARTIAL, PAID, OVERDUE
+  lateFine      Float          @default(0)
+  breakdownJson String         // JSON array of [{ item: "Tuition Fee", amount: 150 }]
+  notes         String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  payments      FeePayment[]
+  receipts      FeeReceipt[]
+}
+
+model FeePayment {
+  id             String       @id @default(cuid())
+  feeSlipId      String
+  feeSlip        FeeSlip      @relation(fields: [feeSlipId], references: [id], onDelete: Cascade)
+  studentId      String
+  student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  amountPaid     Float
+  paymentDate    DateTime     @default(now())
+  paymentMode    String       @default("CASH") // CASH, CHEQUE, BANK_TRANSFER
+  transactionRef String?      // e.g. Cheque # or Cash Voucher #
+  collectedBy    String       @default("Admin Cashier")
+  notes          String?
+  createdAt      DateTime     @default(now())
+  receipt        FeeReceipt?
+}
+
+model FeeReceipt {
+  id               String      @id @default(cuid())
+  receiptNumber    String      @unique // e.g. "RCT-2024-001"
+  feePaymentId     String      @unique
+  feePayment       FeePayment  @relation(fields: [feePaymentId], references: [id], onDelete: Cascade)
+  feeSlipId        String
+  feeSlip          FeeSlip     @relation(fields: [feeSlipId], references: [id], onDelete: Cascade)
+  studentId        String
+  student          Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  receiptDate      DateTime    @default(now())
+  amountPaid       Float
+  balanceRemaining Float       @default(0)
+  remarks          String?
+  createdAt        DateTime    @default(now())
+}
+
+model Exam {
+  id          String         @id @default(cuid())
+  title       String         // e.g. "First Term Examination 2024"
+  session     String         @default("2024-2025")
+  term        String         @default("FIRST_TERM") // FIRST_TERM, MID_TERM, FINAL_TERM
+  startDate   DateTime
+  endDate     DateTime
+  status      String         @default("SCHEDULED")  // SCHEDULED, ONGOING, COMPLETED
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  marks       ExamMark[]
+  schedules   ExamSchedule[]
+}
+
+model ExamSchedule {
+  id         String        @id @default(cuid())
+  examId     String
+  exam       Exam          @relation(fields: [examId], references: [id], onDelete: Cascade)
+  classId    String
+  class      AcademicClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subjectId  String
+  subject    Subject       @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  examDate   DateTime
+  startTime  String        @default("09:00 AM")
+  endTime    String        @default("12:00 PM")
+  maxMarks   Float         @default(100)
+  passMarks  Float         @default(40)
+  roomNumber String?       @default("Exam Hall A")
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@unique([examId, classId, subjectId])
+}
+
+model ExamMark {
+  id            String        @id @default(cuid())
+  examId        String
+  exam          Exam          @relation(fields: [examId], references: [id], onDelete: Cascade)
+  studentId     String
+  student       Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subjectId     String
+  subject       Subject       @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  classId       String
+  class         AcademicClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+  maxMarks      Float         @default(100)
+  passMarks     Float         @default(40)
+  obtainedMarks Float         @default(0)
+  grade         String        @default("A") // A+, A, B, C, D, F
+  status        String        @default("PASS") // PASS, FAIL, ABSENT
+  remarks       String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@unique([examId, studentId, subjectId])
+}
+
+model TimetableSlot {
+  id           String        @id @default(cuid())
+  classId      String
+  class        AcademicClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+  sectionId    String
+  section      Section       @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  subjectId    String
+  subject      Subject       @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  teacherId    String?
+  teacher      Teacher?      @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+  dayOfWeek    String        // MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY
+  periodNumber Int           // 1 to 8
+  startTime    String        // "08:30 AM"
+  endTime      String        // "09:15 AM"
+  roomNumber   String?       @default("Room 101")
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Notification {
+  id         String   @id @default(cuid())
+  title      String
+  message    String
+  type       String   @default("INFO") // INFO, WARNING, SUCCESS, ALERT
+  targetRole String   @default("ALL")  // ALL, ADMIN, TEACHER, ACCOUNTANT
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}
